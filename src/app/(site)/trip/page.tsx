@@ -1,4 +1,5 @@
-import Image from "next/image";
+import { BEACH_PHOTOS, GUEST_SPACE_PHOTOS } from "./trip-photo-data";
+import { TripPhotoGrid } from "./TripPhotoGrid";
 
 const MAPS_URL =
   "https://www.google.com/maps/search/?api=1&query=100+South+Spooky+Lane+2D+Santa+Rosa+Beach+FL+32459";
@@ -9,34 +10,24 @@ export default function TripPage() {
       <h1 className="text-2xl font-semibold text-teal-950">Trip info</h1>
 
       <section className="space-y-5" aria-label="Photos of the property">
-        <figure className="overflow-hidden rounded-2xl border-2 border-teal-200/70 bg-white shadow-md shadow-teal-900/10">
-          <Image
-            src="/trip/balcony-view.png"
-            alt="View from the rental balcony over the dunes and white sand to the Gulf of Mexico, bright blue water under a sunny sky."
-            width={1024}
-            height={575}
-            className="h-auto w-full object-cover"
-            priority
-            sizes="(max-width: 768px) 100vw, 768px"
-          />
-          <figcaption className="border-t border-teal-100/90 bg-gradient-to-b from-teal-50/90 to-amber-50/50 px-4 py-3 text-sm leading-relaxed text-teal-900/88">
-            The view from the balcony—beach grass, dunes, and the Gulf a short
-            walk away.
-          </figcaption>
-        </figure>
-        <figure className="overflow-hidden rounded-2xl border-2 border-teal-200/70 bg-white shadow-md shadow-teal-900/10">
-          <Image
-            src="/trip/aerial-location.png"
-            alt="Aerial view of the Santa Rosa Beach shoreline with the Gulf on west side and the beachfront building marked by a map pin."
-            width={1024}
-            height={574}
-            className="h-auto w-full object-cover"
-            sizes="(max-width: 768px) 100vw, 768px"
-          />
-          <figcaption className="border-t border-teal-100/90 bg-gradient-to-b from-teal-50/90 to-amber-50/50 px-4 py-3 text-sm leading-relaxed text-teal-900/88">
-            From above: the pin marks our building on the dunes, just above the beach.
-          </figcaption>
-        </figure>
+        <div>
+          <h2 className="text-lg font-semibold text-teal-950">Beach &amp; location</h2>
+          <p className="mt-1 text-sm text-teal-800/88">
+            Tap any thumbnail for a full-size photo.
+          </p>
+          <div className="mt-3">
+            <TripPhotoGrid photos={BEACH_PHOTOS} priorityFirst />
+          </div>
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-teal-950">Guest spaces</h2>
+          <p className="mt-1 text-sm text-teal-800/88">
+            The queen room and the living area with the sofa bed—same spots as on the booking calendar.
+          </p>
+          <div className="mt-3">
+            <TripPhotoGrid photos={GUEST_SPACE_PHOTOS} />
+          </div>
+        </div>
       </section>
 
       <p className="text-sm">

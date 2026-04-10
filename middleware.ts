@@ -24,19 +24,12 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/unlock" || pathname.startsWith("/unlock/")) {
     return NextResponse.next();
   }
-  if (pathname.startsWith("/api/unlock")) {
+  // APIs enforce their own auth (JSON). Do not redirect fetches to /unlock HTML.
+  if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
   // Guest magic link: page is safe without passphrase; APIs require JWT.
   if (pathname === "/me" || pathname.startsWith("/me/")) {
-    return NextResponse.next();
-  }
-  if (
-    pathname === "/api/calendar.ics" ||
-    pathname.startsWith("/api/calendar.ics") ||
-    pathname === "/api/calendar/me.ics" ||
-    pathname.startsWith("/api/calendar/me.ics")
-  ) {
     return NextResponse.next();
   }
 

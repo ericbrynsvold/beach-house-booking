@@ -98,12 +98,31 @@ export function AdminClient() {
   async function remove(id: number) {
     if (!confirm("Delete this reservation?")) return;
     setBusy(true);
+    setErr(null);
     try {
       const r = await fetch(`/api/reservations/${id}`, {
         method: "DELETE",
         credentials: "include",
+        redirect: "manual",
       });
-      if (!r.ok) setErr(await r.text());
+      if (r.type === "opaqueredirect" || (r.status >= 300 && r.status < 400)) {
+        setErr(
+          "Session issue—open the unlock page, enter the family passphrase again, then return to Admin.",
+        );
+        return;
+      }
+      if (!r.ok) {
+        const text = await r.text();
+        try {
+          const j = JSON.parse(text) as { error?: string };
+          setErr(j.error ?? text);
+        } catch {
+          setErr(
+            text.slice(0, 120) || `Could not delete (HTTP ${r.status}). Try refreshing.`,
+          );
+        }
+        return;
+      }
       await refresh();
     } finally {
       setBusy(false);
