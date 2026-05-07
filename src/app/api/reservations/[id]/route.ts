@@ -88,7 +88,6 @@ export async function PATCH(
   let body: {
     guestName?: string;
     email?: string;
-    phone?: string | null;
     notes?: string | null;
     resourceId?: number;
     slots?: { dateLocal: string; slot: HalfSlot }[];
@@ -154,8 +153,6 @@ export async function PATCH(
     body.email !== undefined
       ? body.email.trim().toLowerCase()
       : existing.email;
-  const phone =
-    body.phone !== undefined ? body.phone?.trim() || null : existing.phone;
   const notes =
     body.notes !== undefined ? body.notes?.trim() || null : existing.notes;
 
@@ -173,7 +170,6 @@ export async function PATCH(
         resourceId,
         guestName,
         email,
-        phone,
         notes,
         updatedAt: new Date(),
       })
@@ -211,7 +207,6 @@ export async function PATCH(
     resourceId,
     guestName,
     email,
-    phone,
     notes,
     slots,
   });

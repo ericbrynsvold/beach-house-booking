@@ -16,7 +16,6 @@ export async function GET(request: Request) {
       resourceId: reservations.resourceId,
       guestName: reservations.guestName,
       email: reservations.email,
-      phone: reservations.phone,
       notes: reservations.notes,
       createdAt: reservations.createdAt,
       updatedAt: reservations.updatedAt,

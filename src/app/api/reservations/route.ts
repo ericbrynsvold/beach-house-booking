@@ -25,7 +25,6 @@ type Body = {
   resourceId: number;
   guestName: string;
   email: string;
-  phone?: string | null;
   notes?: string | null;
   slots: { dateLocal: string; slot: HalfSlot }[];
 };
@@ -119,7 +118,6 @@ export async function POST(request: Request) {
         resourceId,
         guestName: body.guestName.trim(),
         email,
-        phone: body.phone?.trim() || null,
         notes: body.notes?.trim() || null,
       })
       .returning({ id: reservations.id });
