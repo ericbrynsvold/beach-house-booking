@@ -11,7 +11,6 @@ type ResRow = {
   resourceId: number;
   guestName: string;
   email: string;
-  phone: string | null;
   notes: string | null;
   slots: SlotRow[];
 };
@@ -298,7 +297,6 @@ function AdminQuickCreate(props: {
   const [resourceId, setResourceId] = useState(1);
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startSlot, setStartSlot] = useState<HalfSlot>("am");
@@ -327,7 +325,6 @@ function AdminQuickCreate(props: {
         resourceId,
         guestName: guestName.trim(),
         email: email.trim(),
-        phone: phone.trim() || null,
         notes: notes.trim() || null,
         slots,
       }),
@@ -380,14 +377,6 @@ function AdminQuickCreate(props: {
             className="mt-1 w-full rounded border border-slate-300 px-2 py-1"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          Phone (optional)
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
           />
         </label>
         <label className="text-sm sm:col-span-2">

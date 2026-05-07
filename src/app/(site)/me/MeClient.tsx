@@ -12,7 +12,6 @@ type ResRow = {
   resourceId: number;
   guestName: string;
   email: string;
-  phone: string | null;
   notes: string | null;
   resourceName: string;
   resourceSortOrder: number;

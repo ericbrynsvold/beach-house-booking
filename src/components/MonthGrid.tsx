@@ -221,7 +221,6 @@ export function MonthGrid(props: {
 
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
@@ -484,7 +483,6 @@ export function MonthGrid(props: {
             resourceId: w.id,
             guestName: guestName.trim(),
             email: email.trim(),
-            phone: phone.trim() || null,
             notes: notes.trim() || null,
             slots: slotsPayload,
           }),
@@ -510,7 +508,6 @@ export function MonthGrid(props: {
       resetDateSelection();
       setGuestName("");
       setEmail("");
-      setPhone("");
       setNotes("");
       setBookQueen(true);
       setBookSofa(false);
@@ -827,15 +824,6 @@ export function MonthGrid(props: {
               autoComplete="email"
               type="email"
               placeholder="you@email.com"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium text-teal-900">Phone (optional)</span>
-            <input
-              className="mt-1 w-full rounded-xl border-2 border-teal-200 bg-white px-3 py-2 text-teal-950 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              autoComplete="tel"
             />
           </label>
           <label className="block text-sm sm:col-span-2">
