@@ -34,6 +34,17 @@ export const reservations = pgTable("reservations", {
     .notNull(),
 });
 
+/** Use for `.select(...)` instead of bare `.select()` so SQL matches the DB (no implicit `SELECT *`). */
+export const reservationsSelectColumns = {
+  id: reservations.id,
+  resourceId: reservations.resourceId,
+  guestName: reservations.guestName,
+  email: reservations.email,
+  notes: reservations.notes,
+  createdAt: reservations.createdAt,
+  updatedAt: reservations.updatedAt,
+};
+
 export const reservationSlots = pgTable(
   "reservation_slots",
   {

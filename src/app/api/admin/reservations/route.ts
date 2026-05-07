@@ -1,7 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { reservationSlots, reservations, type HalfSlot } from "@/db/schema";
+import {
+  reservationSlots,
+  reservations,
+  reservationsSelectColumns,
+  type HalfSlot,
+} from "@/db/schema";
 import { requireAdminCookie, requireSiteCookie } from "@/lib/api-auth";
 import { recordAudit } from "@/lib/audit";
 import {
@@ -46,7 +51,10 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const db = getDb();
-  const resList = await db.select().from(reservations).orderBy(asc(reservations.id));
+  const resList = await db
+    .select(reservationsSelectColumns)
+    .from(reservations)
+    .orderBy(asc(reservations.id));
   const out = [];
   for (const r of resList) {
     const slots = await db

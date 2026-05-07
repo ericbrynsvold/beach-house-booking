@@ -4,6 +4,8 @@ import { getDb } from "@/db";
 import {
   reservationSlots,
   reservations,
+  reservationsSelectColumns,
+  resources,
   type HalfSlot,
 } from "@/db/schema";
 import {
@@ -12,12 +14,19 @@ import {
 } from "@/lib/api-auth";
 import { recordAudit } from "@/lib/audit";
 import {
+  getBookingBlackoutDateSet,
+  getBookingPropertyAddress,
+  getMaxStayNights,
   getStayEndExclusiveDateString,
   getStayStartDateString,
 } from "@/lib/config";
+import { sendStayUpdateConfirmationEmail } from "@/lib/mail";
+import { appBaseUrl } from "@/lib/url";
+import { signGuestToken } from "@/lib/tokens";
 import {
   areContiguousHalfDays,
   isSlotBookable,
+  nightCountFromGuestHalfSlots,
   type SlotPick,
 } from "@/lib/slots";
 
@@ -100,7 +109,7 @@ export async function PATCH(
 
   const db = getDb();
   const [existing] = await db
-    .select()
+    .select(reservationsSelectColumns)
     .from(reservations)
     .where(eq(reservations.id, id))
     .limit(1);
@@ -115,13 +124,34 @@ export async function PATCH(
   if (slotsIn !== undefined) {
     const stayStart = getStayStartDateString();
     const stayEndEx = getStayEndExclusiveDateString();
+    const blackout = getBookingBlackoutDateSet();
+    const maxNights = getMaxStayNights();
     for (const s of slotsIn) {
-      if (!isSlotBookable(s.dateLocal, s.slot, stayStart, stayEndEx)) {
+      if (!isSlotBookable(s.dateLocal, s.slot, stayStart, stayEndEx, blackout)) {
         return NextResponse.json(
-          { error: `Slot out of stay window: ${s.dateLocal} ${s.slot}` },
+          {
+            error: blackout.has(s.dateLocal)
+              ? `That time includes blackout dates when the house is not open to bookings (${s.dateLocal}).`
+              : `Slot out of stay window: ${s.dateLocal} ${s.slot}`,
+          },
           { status: 400 },
         );
       }
+    }
+    const nights = nightCountFromGuestHalfSlots(slotsIn);
+    if (!Number.isInteger(nights)) {
+      return NextResponse.json(
+        { error: "Stay must use whole nights (incomplete half-day range)." },
+        { status: 400 },
+      );
+    }
+    if (role !== "admin" && nights > maxNights) {
+      return NextResponse.json(
+        {
+          error: `Stays are limited to ${maxNights} nights at first so everyone gets a turn; shorten this stay or split it.`,
+        },
+        { status: 400 },
+      );
     }
     const picks: SlotPick[] = slotsIn.map((s) => ({
       resourceId,
@@ -202,6 +232,34 @@ export async function PATCH(
     .where(eq(reservationSlots.reservationId, id))
     .orderBy(asc(reservationSlots.dateLocal), asc(reservationSlots.slot));
 
+  let confirmationEmailSent: boolean | undefined;
+  let devMagicLink: string | undefined;
+
+  if (slotsIn !== undefined) {
+    const [resRow] = await db
+      .select({ name: resources.name })
+      .from(resources)
+      .where(eq(resources.id, resourceId))
+      .limit(1);
+    const slotsPayload = slots.map((s) => ({
+      dateLocal: s.dateLocal,
+      slot: s.slot,
+    }));
+    const jwt = await signGuestToken(email);
+    const base = appBaseUrl(request);
+    const manageUrl = `${base}/me?token=${encodeURIComponent(jwt)}`;
+    const sent = await sendStayUpdateConfirmationEmail({
+      to: email,
+      guestName,
+      resourceNames: [resRow?.name ?? "Your space"],
+      slots: slotsPayload,
+      manageUrl,
+      propertyAddress: getBookingPropertyAddress(),
+    });
+    confirmationEmailSent = sent.ok;
+    if (sent.devLink) devMagicLink = sent.devLink;
+  }
+
   return NextResponse.json({
     ...existing,
     resourceId,
@@ -209,6 +267,12 @@ export async function PATCH(
     email,
     notes,
     slots,
+    ...(slotsIn !== undefined
+      ? {
+          confirmationEmailSent,
+          ...(devMagicLink ? { devMagicLink } : {}),
+        }
+      : {}),
   });
 }
 
@@ -230,7 +294,7 @@ export async function DELETE(
 
   const db = getDb();
   const [existing] = await db
-    .select()
+    .select(reservationsSelectColumns)
     .from(reservations)
     .where(eq(reservations.id, id))
     .limit(1);
