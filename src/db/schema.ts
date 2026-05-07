@@ -25,7 +25,6 @@ export const reservations = pgTable("reservations", {
     .notNull(),
   guestName: text("guest_name").notNull(),
   email: text("email").notNull(),
-  phone: text("phone"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
