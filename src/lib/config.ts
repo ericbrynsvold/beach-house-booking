@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRIP_PROPERTY_ADDRESS } from "@/lib/property-info";
 
 const stayEnv = z.object({
   STAY_YEAR: z.coerce.number().default(2026),
@@ -7,6 +8,12 @@ const stayEnv = z.object({
   STAY_MONTH_END_EXCLUSIVE: z.coerce.number().default(8),
   STAY_DAY_END_EXCLUSIVE: z.coerce.number().default(1),
   TIMEZONE: z.string().default("America/Chicago"),
+  /** Max consecutive nights per reservation (initial rollout). */
+  MAX_STAY_NIGHTS: z.coerce.number().int().positive().default(7),
+  /** Inclusive blackout range on the calendar (local stay year). No guest or admin bookings on these dates. */
+  BLACKOUT_MONTH: z.coerce.number().int().min(1).max(12).default(7),
+  BLACKOUT_DAY_START: z.coerce.number().int().min(1).max(31).default(3),
+  BLACKOUT_DAY_END: z.coerce.number().int().min(1).max(31).default(5),
 });
 
 function getStayConfig() {
@@ -17,6 +24,10 @@ function getStayConfig() {
     STAY_MONTH_END_EXCLUSIVE: process.env.STAY_MONTH_END_EXCLUSIVE,
     STAY_DAY_END_EXCLUSIVE: process.env.STAY_DAY_END_EXCLUSIVE,
     TIMEZONE: process.env.TIMEZONE,
+    MAX_STAY_NIGHTS: process.env.MAX_STAY_NIGHTS,
+    BLACKOUT_MONTH: process.env.BLACKOUT_MONTH,
+    BLACKOUT_DAY_START: process.env.BLACKOUT_DAY_START,
+    BLACKOUT_DAY_END: process.env.BLACKOUT_DAY_END,
   });
 }
 
@@ -42,4 +53,30 @@ export function getTimezone(): string {
 
 export function getStayYear(): number {
   return getStayConfig().STAY_YEAR;
+}
+
+export function getMaxStayNights(): number {
+  return getStayConfig().MAX_STAY_NIGHTS;
+}
+
+/** YYYY-MM-DD dates (stay-year local) that cannot be booked at all. */
+export function getBookingBlackoutDateStrings(): string[] {
+  const c = getStayConfig();
+  const y = c.STAY_YEAR;
+  const m = c.BLACKOUT_MONTH;
+  const out: string[] = [];
+  for (let d = c.BLACKOUT_DAY_START; d <= c.BLACKOUT_DAY_END; d++) {
+    out.push(ymd(y, m, d));
+  }
+  return out;
+}
+
+export function getBookingBlackoutDateSet(): ReadonlySet<string> {
+  return new Set(getBookingBlackoutDateStrings());
+}
+
+/** Street address for booking emails — env overrides built-in Trip info copy. */
+export function getBookingPropertyAddress(): string {
+  const fromEnv = (process.env.BOOKING_PROPERTY_ADDRESS ?? "").trim();
+  return fromEnv || TRIP_PROPERTY_ADDRESS;
 }

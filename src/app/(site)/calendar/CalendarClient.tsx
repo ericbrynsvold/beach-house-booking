@@ -62,8 +62,10 @@ function CalendarDownloads() {
 export function CalendarClient(props: {
   stayStart: string;
   stayEndExclusive: string;
+  blackoutDates: string[];
+  maxStayNights: number;
 }) {
-  const { stayStart, stayEndExclusive } = props;
+  const { stayStart, stayEndExclusive, blackoutDates, maxStayNights } = props;
 
   const [, refresh] = useState(0);
 
@@ -79,11 +81,19 @@ export function CalendarClient(props: {
           purple is the sofa. Only the nights we’re sharing the rental stay open—
           other squares stay empty.
         </p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-teal-900/80">
+          <strong className="text-teal-950">Stay length:</strong> each booking is
+          limited to <strong>{maxStayNights} nights</strong> for now so everyone
+          gets a chance to reserve time. That is an initial cap—we expect people
+          can extend stays later, once the first round of plans has settled.
+        </p>
       </div>
 
       <MonthGrid
         stayStart={stayStart}
         stayEndExclusive={stayEndExclusive}
+        blackoutDates={blackoutDates}
+        maxStayNights={maxStayNights}
         onBooked={() => refresh((n) => n + 1)}
       />
 

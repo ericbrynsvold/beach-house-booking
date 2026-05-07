@@ -10,12 +10,15 @@ import {
 import { requireAdminCookie, requireSiteCookie } from "@/lib/api-auth";
 import { recordAudit } from "@/lib/audit";
 import {
+  getBookingBlackoutDateSet,
+  getMaxStayNights,
   getStayEndExclusiveDateString,
   getStayStartDateString,
 } from "@/lib/config";
 import {
   areContiguousHalfDays,
   isSlotBookable,
+  nightCountFromGuestHalfSlots,
   type SlotPick,
 } from "@/lib/slots";
 
@@ -101,13 +104,34 @@ export async function POST(request: Request) {
 
   const stayStart = getStayStartDateString();
   const stayEndEx = getStayEndExclusiveDateString();
+  const blackout = getBookingBlackoutDateSet();
+  const maxNights = getMaxStayNights();
   for (const s of slotsIn) {
-    if (!isSlotBookable(s.dateLocal, s.slot, stayStart, stayEndEx)) {
+    if (!isSlotBookable(s.dateLocal, s.slot, stayStart, stayEndEx, blackout)) {
       return NextResponse.json(
-        { error: `Slot out of stay window: ${s.dateLocal} ${s.slot}` },
+        {
+          error: blackout.has(s.dateLocal)
+            ? `That time includes blackout dates when the house is not open to bookings (${s.dateLocal}).`
+            : `Slot out of stay window: ${s.dateLocal} ${s.slot}`,
+        },
         { status: 400 },
       );
     }
+  }
+  const nights = nightCountFromGuestHalfSlots(slotsIn);
+  if (!Number.isInteger(nights)) {
+    return NextResponse.json(
+      { error: "Stay must use whole nights (incomplete half-day range)." },
+      { status: 400 },
+    );
+  }
+  if (nights > maxNights) {
+    return NextResponse.json(
+      {
+        error: `Stays are limited to ${maxNights} nights at first so everyone gets a turn; shorten this stay or split it.`,
+      },
+      { status: 400 },
+    );
   }
   const picks: SlotPick[] = slotsIn.map((s) => ({
     resourceId,

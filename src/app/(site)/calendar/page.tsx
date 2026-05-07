@@ -1,4 +1,6 @@
 import {
+  getBookingBlackoutDateStrings,
+  getMaxStayNights,
   getStayEndExclusiveDateString,
   getStayStartDateString,
 } from "@/lib/config";
@@ -9,6 +11,8 @@ export default function CalendarPage() {
     <CalendarClient
       stayStart={getStayStartDateString()}
       stayEndExclusive={getStayEndExclusiveDateString()}
+      blackoutDates={getBookingBlackoutDateStrings()}
+      maxStayNights={getMaxStayNights()}
     />
   );
 }

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
+import { getGuestEmailFromRequest } from "@/lib/api-auth";
 import { queryOccupancyForMonth } from "@/lib/occupancy-data";
-import { requireSiteCookie } from "@/lib/api-auth";
 
+/** Same data as /api/occupancy, but authorized with a guest JWT (no site passphrase). */
 export async function GET(request: Request) {
-  if (!(await requireSiteCookie())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const email = await getGuestEmailFromRequest(request);
+  if (!email) {
+    return NextResponse.json({ error: "Guest token required" }, { status: 401 });
   }
+
   const { searchParams } = new URL(request.url);
   const month = Number(searchParams.get("month"));
   const year = Number(searchParams.get("year"));

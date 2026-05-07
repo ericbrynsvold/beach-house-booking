@@ -7,6 +7,7 @@ import {
   enumerateHalfDaysInclusive,
   getLastNightDate,
   isSlotBookable,
+  nightCountFromGuestHalfSlots,
   slotKey,
 } from "@/lib/slots";
 
@@ -83,11 +84,26 @@ function cellKind(
   stayStart: string,
   stayEndExclusive: string,
   lastNight: string,
+  blackoutDays: ReadonlySet<string>,
 ): CellKind {
+  if (blackoutDays.has(dateLocal)) return "muted";
   if (dateLocal < stayStart || dateLocal > stayEndExclusive) return "muted";
   if (dateLocal === stayEndExclusive) return "checkoutMorning";
   if (dateLocal >= stayStart && dateLocal <= lastNight) return "full";
   return "muted";
+}
+
+function dayAllResourcesFull(
+  dateLocal: string,
+  resList: ResourceRow[],
+  occ: Map<string, Occ>,
+): boolean {
+  if (resList.length === 0) return false;
+  return resList.every(
+    (res) =>
+      occ.has(slotKey(res.id, dateLocal, "am")) &&
+      occ.has(slotKey(res.id, dateLocal, "pm")),
+  );
 }
 
 function firstName(guestName: string): string {
@@ -170,9 +186,26 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 export function MonthGrid(props: {
   stayStart: string;
   stayEndExclusive: string;
+  blackoutDates: string[];
+  maxStayNights: number;
   onBooked: () => void;
 }) {
-  const { stayStart, stayEndExclusive, onBooked } = props;
+  const { stayStart, stayEndExclusive, blackoutDates, maxStayNights, onBooked } =
+    props;
+
+  const blackoutSet = useMemo(
+    () => new Set(blackoutDates) as ReadonlySet<string>,
+    [blackoutDates],
+  );
+
+  const blackoutRangeLabel = useMemo(() => {
+    if (blackoutDates.length === 0) return "the blackout period";
+    const sorted = [...blackoutDates].sort();
+    const a = sorted[0]!;
+    const b = sorted[sorted.length - 1]!;
+    if (a === b) return formatDayLabel(a);
+    return `${formatDayLabel(a)}–${formatDayLabel(b)}`;
+  }, [blackoutDates]);
 
   const tripYear = Number(stayStart.slice(0, 4));
   const startMonth = Number(stayStart.slice(5, 7));
@@ -303,22 +336,59 @@ export function MonthGrid(props: {
       setPlanErr(null);
       return;
     }
-    const bad = plannedSlots.some(
+    const hitsBlackout = plannedSlots.some((s) => blackoutSet.has(s.dateLocal));
+    if (hitsBlackout) {
+      setPlanErr(
+        `Those dates overlap our arrival blackout (${blackoutRangeLabel})—the house isn’t open to bookings then. Pick a range that avoids those days.`,
+      );
+      return;
+    }
+    const badWindow = plannedSlots.some(
       (s) => !isSlotBookable(s.dateLocal, s.slot, stayStart, stayEndExclusive),
     );
-    if (bad) {
+    if (badWindow) {
       setPlanErr(
         "Those dates don’t work with the last morning we have the house—try a different leave day.",
       );
-    } else {
-      setPlanErr(null);
+      return;
     }
-  }, [plannedSlots, stayStart, stayEndExclusive]);
+    const nights = nightCountFromGuestHalfSlots(plannedSlots);
+    if (nights > maxStayNights) {
+      setPlanErr(
+        `That stay is ${nights} nights—longer than the ${maxStayNights}-night limit for now. Shorten it for this first round; we plan to allow longer stays once everyone has had a chance to book.`,
+      );
+      return;
+    }
+    setPlanErr(null);
+  }, [
+    plannedSlots,
+    stayStart,
+    stayEndExclusive,
+    blackoutSet,
+    blackoutRangeLabel,
+    maxStayNights,
+  ]);
 
-  const queenRes = resources.find((r) => r.sortOrder === 0) ?? resources[0];
-  const sofaRes = resources.find((r) => r.sortOrder === 1);
-  const hasSofaBed =
-    !!sofaRes && !!queenRes && sofaRes.id !== queenRes.id;
+  /** Primary = sort 0 if present, else lowest sort_order; secondary = sort 1 if it’s a different row, else any other resource. */
+  const { queenRes, sofaRes, hasSofaBed } = useMemo(() => {
+    const sorted = [...resources].sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
+    );
+    const primary =
+      sorted.find((r) => r.sortOrder === 0) ?? sorted[0];
+    const sort1 = sorted.find((r) => r.sortOrder === 1);
+    const secondary =
+      sort1 && primary && sort1.id !== primary.id
+        ? sort1
+        : sorted.find((r) => primary && r.id !== primary.id);
+    const hasTwo =
+      !!primary && !!secondary && secondary.id !== primary.id;
+    return {
+      queenRes: primary,
+      sofaRes: secondary,
+      hasSofaBed: hasTwo,
+    };
+  }, [resources]);
 
   function wantResourceIds(): number[] {
     const ids: number[] = [];
@@ -355,7 +425,13 @@ export function MonthGrid(props: {
 
   function onDayClick(dateLocal: string) {
     setSubmitMsg(null);
-    const kind = cellKind(dateLocal, stayStart, stayEndExclusive, lastNight);
+    const kind = cellKind(
+      dateLocal,
+      stayStart,
+      stayEndExclusive,
+      lastNight,
+      blackoutSet,
+    );
     if (kind === "muted") return;
 
     const canArrive = kind === "full";
@@ -385,7 +461,13 @@ export function MonthGrid(props: {
   }
 
   function dayClickable(dateLocal: string): boolean {
-    const kind = cellKind(dateLocal, stayStart, stayEndExclusive, lastNight);
+    const kind = cellKind(
+      dateLocal,
+      stayStart,
+      stayEndExclusive,
+      lastNight,
+      blackoutSet,
+    );
     if (kind === "muted") return false;
 
     const pickingNewRange = !checkIn || !!(checkIn && checkOut);
@@ -448,9 +530,11 @@ export function MonthGrid(props: {
       return;
     }
     const want: { id: number; label: string }[] = [];
-    if (bookQueen && queenRes) want.push({ id: queenRes.id, label: "Queen room" });
+    if (bookQueen && queenRes) {
+      want.push({ id: queenRes.id, label: resourceLabel(queenRes) });
+    }
     if (bookSofa && sofaRes && hasSofaBed) {
-      want.push({ id: sofaRes.id, label: "Sofa bed" });
+      want.push({ id: sofaRes.id, label: resourceLabel(sofaRes) });
     }
     if (want.length === 0) {
       setSubmitMsg("Pick at least one spot to sleep: queen room and/or sofa bed.");
@@ -472,34 +556,26 @@ export function MonthGrid(props: {
 
     setSubmitting(true);
     try {
-      const results: string[] = [];
-      let magicLinkSent = false;
-      for (const w of want) {
-        const r = await fetch("/api/reservations", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            resourceId: w.id,
-            guestName: guestName.trim(),
-            email: email.trim(),
-            notes: notes.trim() || null,
-            slots: slotsPayload,
-          }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          setSubmitMsg(
-            want.length > 1
-              ? `We saved some of your request, but this part failed: ${j.error ?? r.statusText}. Refresh the calendar or ask whoever runs this site for help.`
-              : (j.error ?? r.statusText),
-          );
-          await load();
-          return;
-        }
-        if (j.magicLinkSent) magicLinkSent = true;
-        results.push(w.label);
+      const r = await fetch("/api/reservations", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resourceIds: want.map((w) => w.id),
+          guestName: guestName.trim(),
+          email: email.trim(),
+          notes: notes.trim() || null,
+          slots: slotsPayload,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setSubmitMsg(j.error ?? r.statusText);
+        await load();
+        return;
       }
+      const results = want.map((w) => w.label);
+      const magicLinkSent = !!j.magicLinkSent;
       setSubmitMsg(
         magicLinkSent
           ? `You’re on the calendar for: ${results.join(" · ")}. Check your email for a link to view or change your booking.`
@@ -577,9 +653,13 @@ export function MonthGrid(props: {
                 stayStart,
                 stayEndExclusive,
                 lastNight,
+                blackoutSet,
               );
               const inRangeVisual = isDayInSelectedRange(dateLocal);
               const clickable = dayClickable(dateLocal);
+              const houseFull =
+                kind !== "muted" &&
+                dayAllResourcesFull(dateLocal, resources, occMap);
               const monthHint =
                 cellMonth !== startMonth
                   ? new Date(tripYear, cellMonth - 1, 1).toLocaleString(
@@ -623,7 +703,7 @@ export function MonthGrid(props: {
                         : clickable
                           ? "bg-amber-50/95 hover:bg-cyan-50/80"
                           : "cursor-default bg-amber-50/60 opacity-90"
-                    }`}
+                    } ${houseFull ? "opacity-50 saturate-75" : ""}`}
                   >
                     {monthHint && (
                       <div className="text-[10px] font-semibold text-teal-700/90">
@@ -677,7 +757,7 @@ export function MonthGrid(props: {
                       : clickable
                         ? "bg-white/95 hover:bg-cyan-50/80"
                         : "bg-white/80 opacity-80"
-                  }`}
+                  } ${houseFull ? "opacity-50 saturate-75" : ""}`}
                 >
                   {monthHint && (
                     <div className="text-[10px] font-semibold text-teal-700/90">
@@ -745,6 +825,16 @@ export function MonthGrid(props: {
             aria-hidden
           />
           Your dates
+        </span>
+        <span className="inline-flex items-center gap-2 text-teal-900/80">
+          <span
+            className="h-3 w-3 rounded-sm bg-white opacity-50 ring-1 ring-stone-400/60"
+            aria-hidden
+          />
+          Dimmed day:{" "}
+          {hasSofaBed
+            ? "queen room and sofa both full"
+            : "guest room fully booked (a.m. and p.m.)"}
         </span>
       </div>
 

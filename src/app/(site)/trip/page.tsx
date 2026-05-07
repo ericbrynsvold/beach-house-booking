@@ -1,8 +1,9 @@
+import {
+  TRIP_PROPERTY_ADDRESS,
+  TRIP_PROPERTY_MAPS_URL,
+} from "@/lib/property-info";
 import { BEACH_PHOTOS, GUEST_SPACE_PHOTOS } from "./trip-photo-data";
 import { TripPhotoGrid } from "./TripPhotoGrid";
-
-const MAPS_URL =
-  "https://www.google.com/maps/search/?api=1&query=100+South+Spooky+Lane+2D+Santa+Rosa+Beach+FL+32459";
 
 export default function TripPage() {
   return (
@@ -44,11 +45,11 @@ export default function TripPage() {
         <strong>Address:</strong>{" "}
         <a
           className="font-medium text-teal-800 underline decoration-teal-400/50 underline-offset-2 hover:text-teal-950"
-          href={MAPS_URL}
+          href={TRIP_PROPERTY_MAPS_URL}
           target="_blank"
           rel="noopener noreferrer"
         >
-          100 South Spooky Lane 2D, Santa Rosa Beach, FL
+          {TRIP_PROPERTY_ADDRESS}
         </a>
       </p>
 

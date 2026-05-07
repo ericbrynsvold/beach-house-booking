@@ -32,13 +32,22 @@ export function isSlotBookable(
   slot: HalfSlot,
   stayStart: string,
   stayEndExclusive: string,
+  blackoutDays: ReadonlySet<string> = new Set(),
 ): boolean {
+  if (blackoutDays.has(dateLocal)) return false;
   if (dateLocal < stayStart) return false;
   if (dateLocal === stayEndExclusive) {
     return slot === "am";
   }
   if (dateLocal > stayEndExclusive) return false;
   return true;
+}
+
+/** Nights for a normal stay: check-in PM through checkout AM (half-slots). */
+export function nightCountFromGuestHalfSlots(
+  slots: { dateLocal: string; slot: HalfSlot }[],
+): number {
+  return slots.length / 2;
 }
 
 /** Last calendar night guests can sleep (night before checkout morning). */
