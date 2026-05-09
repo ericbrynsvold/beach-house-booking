@@ -12,6 +12,7 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "drizzle-orm": "^0.45.2",
