@@ -5,6 +5,7 @@ import {
   reservationSlots,
   reservations,
   reservationsSelectColumns,
+  resources,
   type HalfSlot,
 } from "@/db/schema";
 import { requireAdminCookie, requireSiteCookie } from "@/lib/api-auth";
@@ -12,9 +13,11 @@ import { recordAudit } from "@/lib/audit";
 import {
   getBookingBlackoutDateSet,
   getMaxStayNights,
+  getOwnerNotificationEmail,
   getStayEndExclusiveDateString,
   getStayStartDateString,
 } from "@/lib/config";
+import { sendOwnerReservationNotification } from "@/lib/mail";
 import {
   areContiguousHalfDays,
   isSlotBookable,
@@ -186,6 +189,28 @@ export async function POST(request: Request) {
     entity: "reservation",
     entityId: created,
     metadata: { resourceId, slots: slotsIn },
+  });
+
+  const [resMeta] = await db
+    .select({ name: resources.name })
+    .from(resources)
+    .where(eq(resources.id, resourceId))
+    .limit(1);
+
+  await sendOwnerReservationNotification({
+    kind: "new",
+    ownerTo: getOwnerNotificationEmail(),
+    guestName: body.guestName.trim(),
+    guestEmail: email,
+    reservationSummaries: [
+      {
+        id: created,
+        roomName: resMeta?.name ?? "Room",
+      },
+    ],
+    slots: slotsIn,
+    guestNotes: body.notes?.trim() ?? null,
+    sourceLabel: "Entered via the admin panel.",
   });
 
   return NextResponse.json({ id: created });

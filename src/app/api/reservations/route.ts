@@ -13,10 +13,11 @@ import {
   getBookingBlackoutDateSet,
   getBookingPropertyAddress,
   getMaxStayNights,
+  getOwnerNotificationEmail,
   getStayEndExclusiveDateString,
   getStayStartDateString,
 } from "@/lib/config";
-import { sendBookingConfirmationEmail } from "@/lib/mail";
+import { sendBookingConfirmationEmail, sendOwnerReservationNotification } from "@/lib/mail";
 import {
   areContiguousHalfDays,
   isSlotBookable,
@@ -219,6 +220,20 @@ export async function POST(request: Request) {
     slots: slotsIn,
     manageUrl,
     propertyAddress: getBookingPropertyAddress(),
+  });
+
+  await sendOwnerReservationNotification({
+    kind: "new",
+    ownerTo: getOwnerNotificationEmail(),
+    guestName,
+    guestEmail: email,
+    reservationSummaries: createdIds.map((rid, i) => ({
+      id: rid,
+      roomName: resourceNames[i] ?? "Room",
+    })),
+    slots: slotsIn,
+    guestNotes: notes,
+    sourceLabel: "Booked via the public calendar.",
   });
 
   return NextResponse.json({

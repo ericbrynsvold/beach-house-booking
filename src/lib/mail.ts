@@ -6,6 +6,8 @@ import { slotSortKey } from "@/lib/slots";
 const RESEND_DISPLAY_NAME = "2026 Brynsvold Beach House";
 const SUBJECT_NEW_BOOKING = "Beach House Booking Confirmation";
 const SUBJECT_STAY_UPDATED = "Beach House Stay Updated";
+const SUBJECT_OWNER_NEW = "Beach house: new reservation";
+const SUBJECT_OWNER_UPDATE = "Beach house: reservation updated";
 const SIGN_OFF = "Eric, Rachel, Chloe, & Evie";
 
 function escapeHtml(s: string): string {
@@ -216,4 +218,118 @@ export async function sendStayUpdateConfirmationEmail(params: {
   propertyAddress: string;
 }): Promise<{ ok: boolean; devLink?: string }> {
   return sendReservationDetailsEmail({ kind: "update", ...params });
+}
+
+/** Internal alert so you see when someone reserves or revises dates on the calendar. */
+export async function sendOwnerReservationNotification(params: {
+  kind: "new" | "update";
+  ownerTo: string;
+  guestName: string;
+  guestEmail: string;
+  reservationSummaries: { id: number; roomName: string }[];
+  slots: { dateLocal: string; slot: HalfSlot }[];
+  guestNotes?: string | null;
+  sourceLabel: string;
+}): Promise<{ ok: boolean }> {
+  const key = process.env.RESEND_API_KEY?.trim();
+  const from = buildResendFrom();
+  if (!key || !from) {
+    console.warn("[mail] owner notify skipped: RESEND_API_KEY or RESEND_FROM missing");
+    return { ok: false };
+  }
+  const addr = params.ownerTo.trim().toLowerCase();
+  if (!addr.includes("@")) {
+    console.warn("[mail] owner notify skipped: invalid OWNER_NOTIFICATION_EMAIL");
+    return { ok: false };
+  }
+
+  const name = escapeHtml(params.guestName.trim());
+  const email = escapeHtml(params.guestEmail.trim().toLowerCase());
+  const stayText = formatStaySummaryForEmail(params.slots);
+  const safeStayHtml = escapeHtml(stayText);
+  const summaries = [...params.reservationSummaries].sort((a, b) => a.id - b.id);
+  const reservationsHtml =
+    summaries.length === 0
+      ? escapeHtml("(no reservation rows)")
+      : `<ul style="margin:0.35em 0 0 1.1em;padding:0;">${summaries
+          .map(
+            (s) =>
+              `<li>#${escapeHtml(String(s.id))} — ${escapeHtml(s.roomName.trim() || "Room")}</li>`,
+          )
+          .join("")}</ul>`;
+  const reservationsText =
+    summaries.length === 0
+      ? "(no reservation rows)"
+      : summaries.map((s) => `• #${s.id} — ${s.roomName.trim() || "Room"}`).join("\n");
+
+  const notesRaw = params.guestNotes?.trim();
+  const notesHtml = notesRaw
+    ? `<p><strong>Note from guest</strong><br />${escapeHtml(notesRaw).replace(/\n/g, "<br />")}</p>`
+    : "";
+  const notesText = notesRaw
+    ? `Note from guest:\n${notesRaw}\n`
+    : "";
+
+  const subjectPrefix =
+    params.kind === "update" ? SUBJECT_OWNER_UPDATE : SUBJECT_OWNER_NEW;
+  const subject = `${subjectPrefix} — ${params.guestName.trim()}`;
+
+  const lead =
+    params.kind === "update"
+      ? `<p>This is just to let you know someone <strong>changed</strong> an existing reservation on the beach-house calendar—the details below are what&apos;s saved now.</p>`
+      : `<p>This is just to let you know someone <strong>reserved</strong> space on the beach-house calendar.</p>`;
+
+  const leadText =
+    params.kind === "update"
+      ? `Someone changed an existing reservation on the beach-house calendar—the details below are what's saved now.`
+      : `Someone reserved space on the beach-house calendar.`;
+
+  const html = `
+<p>Eric,</p>
+${lead}
+<p><small>${escapeHtml(params.sourceLabel)}</small></p>
+<p><strong>Guest name</strong><br />${name}</p>
+<p><strong>Guest email</strong><br />${email}</p>
+<p><strong>Calendar entries</strong><br />${reservationsHtml}</p>
+<p><strong>Stay dates</strong><br />${safeStayHtml}</p>
+${notesHtml}
+<p>— ${escapeHtml(SIGN_OFF)} · automated</p>
+`.trim();
+
+  const text = `Eric,
+
+${leadText}
+
+${params.sourceLabel}
+
+Guest name: ${params.guestName.trim()}
+Guest email: ${params.guestEmail.trim().toLowerCase()}
+
+Calendar entries:
+${reservationsText}
+
+Stay dates:
+${stayText}
+
+${notesText}— ${SIGN_OFF} (automated)
+`.trim();
+
+  try {
+    const resend = new Resend(key);
+    const { error } = await resend.emails.send({
+      from,
+      to: addr,
+      subject,
+      html,
+      text,
+    });
+    if (error) {
+      console.error("[mail] owner notify Resend error:", error.message, error.name);
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[mail] owner notify send failed:", e);
+    return { ok: false };
+  }
 }

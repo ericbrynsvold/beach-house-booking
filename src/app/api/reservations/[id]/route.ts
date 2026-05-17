@@ -17,10 +17,11 @@ import {
   getBookingBlackoutDateSet,
   getBookingPropertyAddress,
   getMaxStayNights,
+  getOwnerNotificationEmail,
   getStayEndExclusiveDateString,
   getStayStartDateString,
 } from "@/lib/config";
-import { sendStayUpdateConfirmationEmail } from "@/lib/mail";
+import { sendStayUpdateConfirmationEmail, sendOwnerReservationNotification } from "@/lib/mail";
 import { signGuestToken } from "@/lib/tokens";
 import { appBaseUrl } from "@/lib/url";
 import {
@@ -232,19 +233,35 @@ export async function PATCH(
     .where(eq(reservationSlots.reservationId, id))
     .orderBy(asc(reservationSlots.dateLocal), asc(reservationSlots.slot));
 
+  const [resRow] = await db
+    .select({ name: resources.name })
+    .from(resources)
+    .where(eq(resources.id, resourceId))
+    .limit(1);
+
+  const slotsPayload = slots.map((s) => ({
+    dateLocal: s.dateLocal,
+    slot: s.slot,
+  }));
+
+  await sendOwnerReservationNotification({
+    kind: "update",
+    ownerTo: getOwnerNotificationEmail(),
+    guestName,
+    guestEmail: email,
+    reservationSummaries: [{ id, roomName: resRow?.name ?? "Room" }],
+    slots: slotsPayload,
+    guestNotes: notes,
+    sourceLabel:
+      role === "admin"
+        ? "Updated from the admin panel."
+        : "Updated by the guest via their booking link.",
+  });
+
   let confirmationEmailSent: boolean | undefined;
   let devMagicLink: string | undefined;
 
   if (slotsIn !== undefined) {
-    const [resRow] = await db
-      .select({ name: resources.name })
-      .from(resources)
-      .where(eq(resources.id, resourceId))
-      .limit(1);
-    const slotsPayload = slots.map((s) => ({
-      dateLocal: s.dateLocal,
-      slot: s.slot,
-    }));
     const jwt = await signGuestToken(email);
     const base = appBaseUrl(request);
     const manageUrl = `${base}/me?token=${encodeURIComponent(jwt)}`;

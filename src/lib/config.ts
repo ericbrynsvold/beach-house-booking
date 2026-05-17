@@ -80,3 +80,11 @@ export function getBookingPropertyAddress(): string {
   const fromEnv = (process.env.BOOKING_PROPERTY_ADDRESS ?? "").trim();
   return fromEnv || TRIP_PROPERTY_ADDRESS;
 }
+
+const DEFAULT_OWNER_NOTIFICATION_EMAIL = "eric.brynsvold@gmail.com";
+
+/** Where reservation alerts go (Eric). Override via env for other deployments or test inboxes. */
+export function getOwnerNotificationEmail(): string {
+  const fromEnv = process.env.OWNER_NOTIFICATION_EMAIL?.trim();
+  return fromEnv || DEFAULT_OWNER_NOTIFICATION_EMAIL;
+}
